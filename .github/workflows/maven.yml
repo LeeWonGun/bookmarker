@@ -31,7 +31,12 @@ jobs:
       - name: Build and Push Image
         if: github.ref == 'refs/heads/main'
         run: |
-          ./mvnw jib:build \
-            -DskipTests \
-            -Djib.to.auth.username=${{ secrets.DOCKER_USERNAME }} \
-            -Djib.to.auth.password=${{ secrets.DOCKER_PASSWORD }}
+          ./mvnw clean package jib:dockerBuild -DskipTests
+          docker login \
+            -u ${{ secrets.DOCKER_NAME }} \
+            -p ${{ secrets.DOCKER_PASSWORD }}
+          docker build \
+            -t myimage:latest .
+          docker tag myimage:latest ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
+          docker push \
+            ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
