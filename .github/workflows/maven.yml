@@ -1,10 +1,12 @@
 name: Java CI with Maven
 
+# 어떤 Branch라도 코드가 push될 때마다 workflow 가 실행되도록 함
 on:
   push:
     branches:
       - "**"
 
+# Jobs를 통해서 workflow 단계 만들어 준다
 jobs:
   build-bookmark-api:
     runs-on: ubuntu-latest
@@ -23,27 +25,31 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+# Maven Build 작업시 권한을 설정 접근 허용 +x 실행 권한
       - name: Build with Maven
         run: |
           chmod +x mvnw
           ./mvnw verify
 
+# docker tty 명령어를 사용하기 위한 환경설정
       - name: Build and Push Image
         if: github.ref == 'refs/heads/main'
+        # 현재 실행되고 있는 OS는 내 local PC가 아니라 github의 PC이다. 그렇기 때문에 dockerBuild는 필요 없고 build만 하는게 좋다
         run: |
           ./mvnw clean package jib:dockerBuild -DskipTests
           docker login \
-            -u ${{ secrets.DOCKER_NAME }} \
+            -u ${{ secrets.DOCKER_USERNAME }} \
             -p ${{ secrets.DOCKER_PASSWORD }}
           docker build \
             -t myimage:latest .
-          docker tag myimage:latest ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
+          docker tag myimage:latest ${{ secrets.DOCKER_USERNAME }}/bookmarker-api:latest
           docker push \
-            ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/bookmarker-api:latest
 
-#######################################################################
-# bookmark-ui-nextjs 빌드 및 docker 배포
 
+#######################################################
+#         bookmar-ui-nextjs 빌드 및 docker 배포         #
+#######################################################
   build-bookmarker-ui:
     name: Build bookmarker-ui
     runs-on: ubuntu-latest
@@ -52,36 +58,35 @@ jobs:
       run:
         working-directory: ./bookmark-ui-nextjs
     steps:
-      #코드 체크아웃
+      #코드체크아웃
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # Node.js 설정
+      #Node.js 설정
       - name: Setup Node.js 22
-        uses: actions/Setup-node@v5
+        uses: actions/setup-node@v5
         with:
           node-version: 22
-
-      # 의존성 설치
-      - name: Install dependencies
+      
+      #의존성 설치
+      - name: Install dependecies
         run: npm ci
       
-      # .env.local 파일 설정
-      # 복사해서 사용하지 않는 이유는 UI의 .gitignore 파일은 .env 파일을 제외하도록 설정되어 있기 때문
-      # 파일을 작성해서 넣어준다, echo 문서를 만들어준다
+      #.env.local 파일 설정
+      # 복사해서 사용하지 않는 이유는 UI의 .gitignore 파일은 .env* 파일을 제외 한다
+      # 파일을 작성해서 넣어 준다 echo 문서를 만들어 준다
       - name: Create .env 파일 생성
         run: |
           echo "SERVER_SIDE_API_BASE_URL=${{ secrets.SERVER_SIDE_API_BASE_URL }}" > .env.local
-          echo "NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL=#{{ secrets.NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL=${{ secrets.NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL }}" >> .env.local
 
-      # Next.js 빌드
+      #Next.js 빌드
       - name: Next.js Build
         run: npm run build
 
-      
-      # 메인 브렌치일 경우 Docker 이미지 빌드 및 배포
+      # 메인 브렌치 일경우 Docker 이미지 빌드 및 배포
       - if: ${{ github.ref == 'refs/heads/main' }}
-        name: Build and Push Docker Image
+        name: Build and Push Docker image
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
           docker build -f Dockerfile.ui -t ${{ secrets.DOCKER_USERNAME }}/bookmark-ui-nextjs .
