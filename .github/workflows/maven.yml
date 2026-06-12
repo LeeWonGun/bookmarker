@@ -40,3 +40,49 @@ jobs:
           docker tag myimage:latest ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
           docker push \
             ${{ secrets.DOCKER_NAME }}/bookmarker-api:latest
+
+#######################################################################
+# bookmark-ui-nextjs 빌드 및 docker 배포
+
+  build-bookmarker-ui:
+    name: Build bookmarker-ui
+    runs-on: ubuntu-latest
+    defaults:
+      # 배포된 git repository의 폴더명
+      run:
+        working-directory: ./bookmark-ui-nextjs
+    steps:
+      #코드 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Node.js 설정
+      - name: Setup Node.js 22
+        uses: actions/Setup-node@v4
+        with:
+          node-version: 22
+
+      # 의존성 설치
+      - name: Install dependencies
+        run: npm ci
+      
+      # .env.local 파일 설정
+      # 복사해서 사용하지 않는 이유는 UI의 .gitignore 파일은 .env 파일을 제외하도록 설정되어 있기 때문
+      # 파일을 작성해서 넣어준다, echo 문서를 만들어준다
+      - name: Create .env 파일 생성
+        run: |
+          echo "SERVER_SIDE_API_BASE_URL=${{ secrets.SERVER_SIDE_API_BASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL=#{{ secrets.NEXT_PUBLIC_CLIENT_SIDE_API_BASE_URL }}" >> .env.local
+
+      # Next.js 빌드
+      - name: Next.js Build
+        run: npm run build
+
+      
+      # 메인 브렌치일 경우 Docker 이미지 빌드 및 배포
+      - if: ${{ github.ref == 'refs/heads/main' }}
+        name: Build and Push Docker Image
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker build -f Dockerfile.ui -t ${{ secrets.DOCKER_USERNAME }}/bookmark-ui-nextjs
+          docker push ${{ secrets.DOCKER_USERNAME }}/bookmark-ui-nextjs

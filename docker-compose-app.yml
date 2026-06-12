@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  bookmarker-api:
+    build: 
+      context: bookmarker-api
+      dockerfile: Dockerfile
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://bookmarker-db:5432/appdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+    ports:
+      - "18080:8080"
+    
+    restart: always
+
+# bookmarker-db 먼지 실행되고 bookmarker-api 되어야 한다
+    depends_on:
+      bookmarker-db:
+        condition: service_healthy
+
+    networks:
+      - bookmarker-network
+
+
+### UI 
+  bookmarker-ui-nextjs:
+    container_name: bookmarker-ui-nextjs
+    build:
+      context: bookmark-ui-nextjs
+      dockerfile: Dockerfile.ui
+    ports:
+      - "13000:3000"
+    env_file:
+      - /bookmark-ui-nextjs/.env.local
+    networks:
+      - bookmarker-network
+
+
+networks:
+  bookmarker-network:
+    driver: bridge
